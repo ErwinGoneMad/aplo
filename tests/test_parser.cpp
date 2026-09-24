@@ -117,3 +117,27 @@ TEST(ParserAcceptsTotalQuantityAtLimit) {
     const OrderFile file = parse("1,A,B," + first + ",1\n2,A,S,1,1\n");
     CHECK_EQ(file.orders.size(), 2u);
 }
+
+TEST(ContiguousParserMatchesStreamParser) {
+    const std::string input =
+        "30,AAPL,B,1,10.25\r\n"
+        "10,AAPL,S,2,0\n"
+        "20,AAPL,B,3,9.12345678";
+    const OrderFile streamFile = parse(input);
+    const OrderFile contiguousFile = auction::parseOrders(std::string_view{input}, "input.txt");
+
+    CHECK_EQ(contiguousFile.symbol, streamFile.symbol);
+    CHECK_EQ(contiguousFile.orders.size(), streamFile.orders.size());
+    for (std::size_t i = 0; i < streamFile.orders.size(); ++i) {
+        CHECK_EQ(contiguousFile.orders[i].timestamp, streamFile.orders[i].timestamp);
+        CHECK_EQ(contiguousFile.orders[i].quantity, streamFile.orders[i].quantity);
+        CHECK_EQ(contiguousFile.orders[i].price, streamFile.orders[i].price);
+        CHECK(contiguousFile.orders[i].side == streamFile.orders[i].side);
+    }
+}
+
+TEST(ContiguousParserPreservesLineErrors) {
+    CHECK_THROWS_WITH(auction::parseOrders(std::string_view{"1,AAPL,B,1,1\n\n2,AAPL,S,1,1\n"},
+                                           "mapped.csv"),
+                      ParseError, "mapped.csv:2: expected 5 comma-separated fields");
+}

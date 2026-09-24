@@ -26,4 +26,8 @@ struct OrderFile {
 // (which keeps every auction sum and imbalance within int64).
 OrderFile parseOrders(std::istream& in, std::string_view source);
 
+// Parses a complete file already held in contiguous memory. The input only
+// needs to remain valid for the duration of this call.
+OrderFile parseOrders(std::string_view input, std::string_view source);
+
 }  // namespace auction
