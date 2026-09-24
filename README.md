@@ -1,28 +1,22 @@
 # Closing Auction Calculator
 
-A dependency-free C++20 command-line program that calculates an equity closing-auction price from a file of buy and sell orders.
-
-It outputs:
-
-- the selected auction price;
-- the total crossed volume; and
-- the remaining signed imbalance, positive for a buy surplus and negative for a sell surplus.
+A dependency-free C++20 command-line program that determines an equity closing-auction price from buy and sell orders.
 
 ## Build and run
 
 Requirements:
 
-- macOS or Linux;
-- CMake 3.20 or newer;
-- GCC or Clang with C++20 support.
+- macOS or Linux
+- CMake 3.20 or newer
+- GCC or Clang with C++20 support
 
 ```sh
-cmake -S . -B build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ./build/auction -i examples/input.txt -r 275.99
 ```
 
-Example output:
+Output:
 
 ```text
 Price: 270.39
@@ -30,125 +24,84 @@ Volume: 100
 Imbalance: 100
 ```
 
-The program returns `0` on success, `1` for an input-data error, and `2` for invalid command-line usage.
+The exit code is `0` on success, `1` for an input-data error, and `2` for invalid command-line usage.
 
-## Input format
+## Input
 
-The input is an ASCII CSV file without a header. Each non-empty line contains:
+The input is an ASCII CSV file without a header. Each line has five fields:
 
 ```text
 timestamp,symbol,side,quantity,price
 ```
 
-For example:
+- `timestamp`: unsigned 64-bit nanoseconds since 1970-01-01
+- `symbol`: one or more uppercase letters
+- `side`: `B` for buy or `S` for sell
+- `quantity`: positive integer
+- `price`: non-negative decimal; zero denotes a market order
 
-```text
-1527604196773077003,AAPL,S,500,270.5700
-1527604199695788161,AAPL,B,100,270.3900
-1527604199397997988,AAPL,S,100,0
-1527604199974781594,AAPL,S,900,278.00
-1527604200211637272,AAPL,B,100,0
-```
+Exactly one symbol is accepted per file. Malformed input is rejected at the first error with the filename and line number.
 
-- `timestamp` is an unsigned 64-bit integer.
-- `symbol` contains uppercase letters only. This implementation accepts exactly one symbol per file.
-- `side` is `B` for buy or `S` for sell.
-- `quantity` is a positive integer.
-- `price` is a non-negative decimal. A price of zero denotes a market order.
+## Auction semantics
 
-Malformed input is rejected at the first error with the source file and line number.
+1. Candidate prices are the distinct non-zero limit prices. Market orders do not introduce a candidate.
+2. At candidate price `p`, eligible orders are market orders, buys priced at or above `p`, and sells priced at or below `p`.
+3. Candidates are ranked by maximum crossed volume: `min(eligible buys, eligible sells)`.
+4. Remaining candidates are ranked by minimum absolute imbalance. The reported value remains signed: `eligible buys - eligible sells`.
+5. Remaining candidates are ranked by distance to the reference price.
+6. If two prices remain, the oldest eligible buy selects the lower price and the oldest eligible sell selects the higher price.
 
-## Auction rules
+Eligibility at the candidate price is inclusive. If there is no limit-price candidate, or the maximum crossed volume is zero, all three output values are zero.
 
-The implementation applies the assignment rules in this order:
+### Final tie-break
 
-1. Candidate prices are the distinct non-zero order prices. Market orders do not introduce a candidate price.
-2. At a candidate price `p`, eligible orders are:
-   - market orders;
-   - buy limits priced at or above `p`; and
-   - sell limits priced at or below `p`.
-3. Select the candidate with the greatest executable volume: `min(eligible buys, eligible sells)`.
-4. If several candidates remain, select the one with the smallest absolute imbalance. The reported imbalance remains signed: `eligible buys - eligible sells`.
-5. If several candidates remain, select the one closest to the supplied reference price.
-6. If two candidates remain, use the assignment's oldest-eligible-order rule: a buy selects the lower price and a sell selects the higher price.
+Eligibility differs between two tied prices, so “oldest eligible order” needs a precise interpretation. The implementation considers the union of:
 
-Orders priced exactly at the candidate are included. This is consistent with the assignment's rule that buy and sell prices are compatible when the buy price is greater than or equal to the sell price.
+- market orders
+- buys eligible at the lower price
+- sells eligible at the higher price
 
-If there is no non-market candidate price, or if the maximum executable volume is zero, the program outputs price `0`, volume `0`, and imbalance `0`.
+This ensures that the deciding order is eligible at the price selected by its side. The smallest timestamp is oldest; file order breaks equal timestamps.
 
-### Final tie-break interpretation
-
-The phrase “oldest eligible order” is ambiguous when eligibility differs between the two tied prices. This implementation considers the oldest order eligible at either tied price:
-
-- market orders;
-- buys eligible at the lower price; and
-- sells eligible at the higher price.
-
-This makes the deciding order eligible at the price selected by its side. Age is determined by the smallest timestamp. If timestamps are equal, earlier file order wins.
-
-## Price and overflow handling
-
-Prices use exact fixed-point integers with eight decimal places. They are parsed directly from text without passing through binary floating point, so equal price levels and reference-price distances are compared exactly.
-
-Inputs with more than eight fractional digits, exponent notation, signs, whitespace, or a value outside the representable range are rejected rather than rounded.
-
-Quantities and results use signed 64-bit integers internally. The parser requires the sum of all order quantities to fit in `INT64_MAX`. This guarantees that cumulative buy and sell volumes, crossed volume, and signed imbalance cannot overflow during the auction calculation.
-
-## Algorithm and complexity
-
-`runAuction` performs the following steps:
-
-1. Separate market-order quantities from limit orders.
-2. Sort limit orders by price and merge equal prices into levels.
-3. Scan the levels in ascending order while maintaining eligible buy and sell totals.
-4. Rank each candidate by volume, absolute imbalance, and distance to the reference price.
-5. If required, make one additional linear pass to resolve the final tie.
-
-The total complexity is `O(n log n)` time and `O(n)` additional memory. The auction calculation is deterministic and single-threaded.
-
-## Correctness, maintainability, and algorithm complexity
-
-These are the three main priorities of the assignment, and the implementation addresses each directly.
+## Correctness, maintainability, and complexity
 
 ### Correctness
 
-- Prices are parsed and compared as exact fixed-point values rather than binary floating point.
-- The auction rules are applied in their stated order, with the ambiguous cases documented explicitly.
-- Input is validated before calculation, and the total-quantity bound prevents arithmetic overflow.
-- Unit, end-to-end, sanitizer, and randomized differential tests cover both normal and adversarial cases.
+- Prices are exact fixed-point integers with eight decimal places; no binary floating-point comparison is used.
+- Inputs that require rounding or exceed the price range are rejected.
+- The total order quantity must fit in `INT64_MAX`, which bounds cumulative volumes and signed imbalance.
+- Unit, end-to-end, sanitizer, and deterministic randomized differential tests cover normal and adversarial cases.
 
 ### Maintainability
 
-- Price handling, input parsing, auction logic, and command-line concerns are separated into small components.
-- `runAuction` is a deterministic function with no I/O or hidden state, which makes it straightforward to reason about and test.
-- The project uses standard C++20 and CMake without third-party dependencies.
-- Assumptions and limitations are recorded below instead of being left implicit in the implementation.
+- Price handling, parsing, auction logic, and command-line I/O are separate components.
+- `runAuction` is deterministic and has no I/O or hidden state.
+- The project uses standard C++20 and CMake with no third-party dependencies.
+- Assumptions and limitations are documented rather than encoded implicitly.
 
-### Algorithm complexity
+### Complexity
 
-- Limit orders are sorted and merged once, then evaluated in a single ascending scan.
-- The production algorithm runs in `O(n log n)` time and uses `O(n)` additional memory.
-- The intentionally slower brute-force implementation is used only as a test oracle and is not part of the production path.
+Limit orders are sorted and merged by price, then evaluated in one ascending scan. A final linear pass is made only when the last tie-break is needed.
+
+- Time: `O(n log n)`
+- Additional memory: `O(n)`
 
 ## Tests
-
-Build and run the complete test suite with:
 
 ```sh
 ctest --test-dir build --output-on-failure
 ```
 
-The project contains 40 unit and differential tests plus 16 command-line test entries. Coverage includes:
+The suite contains 40 unit and differential tests plus 16 end-to-end command-line tests. It covers:
 
-- every auction ranking rule;
-- market, one-sided, empty, and non-crossing books;
-- equal price aggregation;
-- timestamp and final tie behavior;
-- parser and command-line rejection paths;
-- values near the arithmetic limit; and
-- 40,000 deterministic randomized comparisons against a separate brute-force implementation.
+- each auction ranking rule and the final tie-break
+- market, empty, one-sided, and non-crossing books
+- equal-price aggregation and timestamp ordering
+- malformed input and command-line errors
+- fixed-point and arithmetic boundaries
+- 40,000 generated books checked against an independent brute-force implementation
 
-To run with AddressSanitizer and UndefinedBehaviorSanitizer:
+For AddressSanitizer and UndefinedBehaviorSanitizer:
 
 ```sh
 cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug -DAUCTION_SANITIZE=ON
@@ -156,33 +109,20 @@ cmake --build build-asan -j
 ctest --test-dir build-asan --output-on-failure
 ```
 
-An optional synthetic benchmark is built as `auction_bench`:
-
-```sh
-./build/auction_bench [orders] [price_levels] [repetitions]
-```
-
 ## Performance investigation
 
-An optimized Apple M1 Pro profile measured parsing at approximately 265 ns per order and the auction calculation at approximately 50–84 ns per order, depending on the number of distinct price levels. That parser figure comes from repeatedly parsing an already-generated in-memory string; it excludes opening and reading a file. Parsing dominated total CPU time, while sorting dominated the auction phase on a deliberately wide price distribution. The measurements confirmed the documented `O(n log n)` behavior and found no auction-algorithm performance defect.
+On an Apple M1 Pro, optimized in-memory parsing measured approximately 265 ns per order. Auction calculation measured approximately 50–84 ns per order, depending on the number of distinct price levels. Parsing dominated the combined workload; sorting dominated the auction phase on a wide price distribution. These measurements confirm the expected `O(n log n)` behavior and are not portable latency guarantees.
 
-The [`bench/parser-comparison`](https://github.com/ErwinGoneMad/aplo/tree/bench/parser-comparison) branch compares the current `std::getline` parser with whole-file buffered and memory-mapped input. Unlike the first benchmark, it includes opening a warm cached file, acquiring its bytes, validation, and parsing. For a 37 MB, one-million-order file, median ingestion times were approximately 280 ms, 144 ms, and 133 ms respectively. The separate [`feature/mmap-parser`](https://github.com/ErwinGoneMad/aplo/tree/feature/mmap-parser) branch contains the resulting POSIX mmap implementation. These are local comparative measurements, not portable latency guarantees.
+Two branches preserve the input-performance experiments:
 
-## Project layout
-
-- `src/price.*`: exact price parsing and formatting.
-- `src/parser.*`: input validation and order-file parsing.
-- `src/auction.*`: auction calculation.
-- `src/main.cpp`: command-line handling and output.
-- `tests/`: unit, differential, and end-to-end tests.
-- `testdata/`: assignment and adversarial input cases with expected output.
-- `bench/bench.cpp`: synthetic parser and auction benchmark.
+- [`bench/parser-comparison`](https://github.com/ErwinGoneMad/aplo/tree/bench/parser-comparison) compares `std::getline`, whole-file buffering, and memory mapping. Median warm-cache ingestion of a 37 MB, one-million-order file was approximately 280 ms, 144 ms, and 133 ms respectively; unlike the in-memory figure above, these measurements include opening and acquiring the file.
+- [`feature/mmap-parser`](https://github.com/ErwinGoneMad/aplo/tree/feature/mmap-parser) contains the resulting POSIX mmap implementation and documents its trade-offs.
 
 ## Known limitations and assumptions
 
-- Exactly one symbol is accepted per input file.
-- Prices are limited to eight fractional digits and approximately `9.22e10` in magnitude. The assignment does not state a maximum precision or range.
-- Quantities must be positive and their total must fit in `INT64_MAX`.
-- All parsed orders and a temporary vector of price levels are held in memory.
-- The final tie-break interpretation and equal-timestamp file-order rule are explicit implementation assumptions because the assignment does not define those cases fully.
-- A market-only book returns `0 / 0 / 0` because the assignment requires the auction price to be a non-market order price.
+- A file may contain only one symbol.
+- Prices support up to eight fractional digits and a maximum value of `92233720368.54775807`.
+- Quantities must be positive, and their total must fit in `INT64_MAX`.
+- Orders and temporary price levels are held in memory.
+- The final tie-break union and equal-timestamp file-order rule are explicit choices for otherwise ambiguous cases.
+- A market-only book returns `0 / 0 / 0` because it has no limit-price candidate.
