@@ -1,0 +1,21 @@
+# Build products
+build*/
+cmake-build-*/
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/
+
+# Personal project notes: README.md is the only Markdown deliverable
+*.md
+!README.md
+goal.txt
+*.numbers
+
+# Local secrets and credentials
+.env
+.env.*
+*.key
+*.pem
+credentials*
