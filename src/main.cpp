@@ -1,5 +1,4 @@
 #include <exception>
-#include <fstream>
 #include <iostream>
 #include <optional>
 #include <stdexcept>
@@ -7,6 +6,7 @@
 #include <string_view>
 
 #include "auction.hpp"
+#include "input_file.hpp"
 #include "parser.hpp"
 #include "price.hpp"
 
@@ -80,14 +80,9 @@ int main(int argc, char** argv) {
         return kExitUsageError;
     }
 
-    std::ifstream input(options.inputPath);
-    if (!input) {
-        std::cerr << "error: cannot open '" << options.inputPath << "'\n";
-        return kExitDataError;
-    }
-
     try {
-        const auction::OrderFile file = auction::parseOrders(input, options.inputPath);
+        const auction::InputFile input{options.inputPath};
+        const auction::OrderFile file = auction::parseOrders(input.bytes(), options.inputPath);
         const auction::AuctionResult result = auction::runAuction(file.orders, options.reference);
         std::cout << "Price: " << result.price << '\n'
                   << "Volume: " << result.volume << '\n'
