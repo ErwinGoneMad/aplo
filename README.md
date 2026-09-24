@@ -161,6 +161,12 @@ An optional synthetic benchmark is built as `auction_bench`:
 ./build/auction_bench [orders] [price_levels] [repetitions]
 ```
 
+## Performance investigation
+
+An optimized Apple M1 Pro profile measured parsing at approximately 265 ns per order and the auction calculation at approximately 50–84 ns per order, depending on the number of distinct price levels. Parsing dominated total CPU time, while sorting dominated the auction phase on a deliberately wide price distribution. The measurements confirmed the documented `O(n log n)` behavior and found no auction-algorithm performance defect.
+
+Separate experimental branches compared the current `std::getline` parser with whole-file buffered and memory-mapped input. On a warm 37 MB, one-million-order file, their median ingestion times were approximately 280 ms, 144 ms, and 133 ms respectively. Those local figures motivated an optional mmap implementation without complicating this main assignment branch; they are reproducible development measurements, not portable latency guarantees.
+
 ## Project layout
 
 - `src/price.*`: exact price parsing and formatting.
@@ -176,6 +182,6 @@ An optional synthetic benchmark is built as `auction_bench`:
 - Exactly one symbol is accepted per input file.
 - Prices are limited to eight fractional digits and approximately `9.22e10` in magnitude. The assignment does not state a maximum precision or range.
 - Quantities must be positive and their total must fit in `INT64_MAX`.
-- The entire order file and a temporary vector of price levels are held in memory.
+- All parsed orders and a temporary vector of price levels are held in memory.
 - The final tie-break interpretation and equal-timestamp file-order rule are explicit implementation assumptions because the assignment does not define those cases fully.
 - A market-only book returns `0 / 0 / 0` because the assignment requires the auction price to be a non-market order price.
