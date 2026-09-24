@@ -2,6 +2,12 @@
 
 A dependency-free C++20 command-line program that calculates an equity closing-auction price from a file of buy and sell orders.
 
+## Branch focus: memory-mapped input
+
+This branch uses a private, read-only `mmap` for regular input files on POSIX systems. The parser scans contiguous bytes directly while preserving the same validation, fixed-point, overflow, and line-number behavior as the stream parser.
+
+On a warm 37 MB file containing one million orders, median ingestion fell from approximately 280 ms with `std::getline` to 133 ms with mmap. Most of that gain comes from contiguous parsing; mmap adds a further improvement by avoiding the complete file-to-string copy. These are local comparative measurements, not portable latency guarantees.
+
 It outputs:
 
 - the selected auction price;
@@ -57,6 +63,8 @@ For example:
 - `price` is a non-negative decimal. A price of zero denotes a market order.
 
 Malformed input is rejected at the first error with the source file and line number.
+
+On POSIX, `-i` must name a stable regular file. Directories, FIFOs, and devices are rejected before mapping. The mapping remains alive only while parsing; every value returned in `OrderFile` owns its required data.
 
 ## Auction rules
 
@@ -138,13 +146,14 @@ Build and run the complete test suite with:
 ctest --test-dir build --output-on-failure
 ```
 
-The project contains 40 unit and differential tests plus 16 command-line test entries. Coverage includes:
+The project contains 42 unit and differential tests plus 17 command-line test entries. Coverage includes:
 
 - every auction ranking rule;
 - market, one-sided, empty, and non-crossing books;
 - equal price aggregation;
 - timestamp and final tie behavior;
 - parser and command-line rejection paths;
+- rejection of non-regular POSIX input paths;
 - values near the arithmetic limit; and
 - 40,000 deterministic randomized comparisons against a separate brute-force implementation.
 
@@ -172,6 +181,7 @@ The [`bench/parser-comparison`](https://github.com/ErwinGoneMad/aplo/tree/bench/
 
 - `src/price.*`: exact price parsing and formatting.
 - `src/parser.*`: input validation and order-file parsing.
+- `src/input_file.*`: POSIX mmap ownership and regular-file validation.
 - `src/auction.*`: auction calculation.
 - `src/main.cpp`: command-line handling and output.
 - `tests/`: unit, differential, and end-to-end tests.
@@ -183,6 +193,7 @@ The [`bench/parser-comparison`](https://github.com/ErwinGoneMad/aplo/tree/bench/
 - Exactly one symbol is accepted per input file.
 - Prices are limited to eight fractional digits and approximately `9.22e10` in magnitude. The assignment does not state a maximum precision or range.
 - Quantities must be positive and their total must fit in `INT64_MAX`.
-- All parsed orders and a temporary vector of price levels are held in memory.
+- All parsed orders and a temporary vector of price levels are held in memory; mapped input pages become resident as the operating system loads them.
+- POSIX input must be a regular file that is not modified or truncated while parsing; concurrent truncation of a mapping can raise `SIGBUS`.
 - The final tie-break interpretation and equal-timestamp file-order rule are explicit implementation assumptions because the assignment does not define those cases fully.
 - A market-only book returns `0 / 0 / 0` because the assignment requires the auction price to be a non-market order price.

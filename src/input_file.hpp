@@ -6,8 +6,7 @@
 
 namespace auction {
 
-// Provides a read-only contiguous view of an input file. POSIX builds use a
-// private mmap; other platforms fall back to an owned string buffer.
+// Provides a read-only contiguous view of a regular file using a private mmap.
 class InputFile {
 public:
     explicit InputFile(const std::string& path);
@@ -21,7 +20,6 @@ public:
 private:
     void* mapping_ = nullptr;
     std::size_t size_ = 0;
-    std::string fallback_;
 };
 
 }  // namespace auction
