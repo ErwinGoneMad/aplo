@@ -2,6 +2,18 @@
 
 A dependency-free C++20 command-line program that calculates an equity closing-auction price from a file of buy and sell orders.
 
+## Branch focus: parser comparison
+
+This branch keeps the command-line program on its original `std::getline` path and adds a shared contiguous-memory parser plus `parser_bench`, which compares `getline`, whole-file buffering, and read-only `mmap`. On a warm 37 MB file containing one million orders, median ingestion times were approximately 280 ms, 144 ms, and 133 ms respectively. All methods are verified field-for-field before timing.
+
+```sh
+cmake -S . -B build-profile -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build-profile -j
+./build-profile/parser_bench 1000000 21 all
+```
+
+These measurements are local comparative evidence, not portable latency guarantees. The production mmap integration is intentionally isolated on `feature/mmap-parser`.
+
 It outputs:
 
 - the selected auction price;
@@ -138,7 +150,7 @@ Build and run the complete test suite with:
 ctest --test-dir build --output-on-failure
 ```
 
-The project contains 40 unit and differential tests plus 16 command-line test entries. Coverage includes:
+The project contains 42 unit and differential tests plus 16 command-line test entries. Coverage includes:
 
 - every auction ranking rule;
 - market, one-sided, empty, and non-crossing books;
@@ -177,12 +189,13 @@ The [`bench/parser-comparison`](https://github.com/ErwinGoneMad/aplo/tree/bench/
 - `tests/`: unit, differential, and end-to-end tests.
 - `testdata/`: assignment and adversarial input cases with expected output.
 - `bench/bench.cpp`: synthetic parser and auction benchmark.
+- `bench/parser_bench.cpp`: verified comparison of three file-ingestion strategies.
 
 ## Known limitations and assumptions
 
 - Exactly one symbol is accepted per input file.
 - Prices are limited to eight fractional digits and approximately `9.22e10` in magnitude. The assignment does not state a maximum precision or range.
 - Quantities must be positive and their total must fit in `INT64_MAX`.
-- All parsed orders and a temporary vector of price levels are held in memory.
+- All parsed orders and a temporary vector of price levels are held in memory; the buffered benchmark additionally owns a complete input copy while it runs.
 - The final tie-break interpretation and equal-timestamp file-order rule are explicit implementation assumptions because the assignment does not define those cases fully.
 - A market-only book returns `0 / 0 / 0` because the assignment requires the auction price to be a non-market order price.
