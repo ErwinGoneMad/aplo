@@ -12,8 +12,9 @@ It outputs:
 
 Requirements:
 
+- macOS or Linux;
 - CMake 3.20 or newer;
-- a C++20 compiler.
+- GCC or Clang with C++20 support.
 
 ```sh
 cmake -S . -B build
@@ -163,9 +164,9 @@ An optional synthetic benchmark is built as `auction_bench`:
 
 ## Performance investigation
 
-An optimized Apple M1 Pro profile measured parsing at approximately 265 ns per order and the auction calculation at approximately 50–84 ns per order, depending on the number of distinct price levels. Parsing dominated total CPU time, while sorting dominated the auction phase on a deliberately wide price distribution. The measurements confirmed the documented `O(n log n)` behavior and found no auction-algorithm performance defect.
+An optimized Apple M1 Pro profile measured parsing at approximately 265 ns per order and the auction calculation at approximately 50–84 ns per order, depending on the number of distinct price levels. That parser figure comes from repeatedly parsing an already-generated in-memory string; it excludes opening and reading a file. Parsing dominated total CPU time, while sorting dominated the auction phase on a deliberately wide price distribution. The measurements confirmed the documented `O(n log n)` behavior and found no auction-algorithm performance defect.
 
-Separate experimental branches compared the current `std::getline` parser with whole-file buffered and memory-mapped input. On a warm 37 MB, one-million-order file, their median ingestion times were approximately 280 ms, 144 ms, and 133 ms respectively. Those local figures motivated an optional mmap implementation without complicating this main assignment branch; they are reproducible development measurements, not portable latency guarantees.
+The [`bench/parser-comparison`](https://github.com/ErwinGoneMad/aplo/tree/bench/parser-comparison) branch compares the current `std::getline` parser with whole-file buffered and memory-mapped input. Unlike the first benchmark, it includes opening a warm cached file, acquiring its bytes, validation, and parsing. For a 37 MB, one-million-order file, median ingestion times were approximately 280 ms, 144 ms, and 133 ms respectively. The separate [`feature/mmap-parser`](https://github.com/ErwinGoneMad/aplo/tree/feature/mmap-parser) branch contains the resulting POSIX mmap implementation. These are local comparative measurements, not portable latency guarantees.
 
 ## Project layout
 

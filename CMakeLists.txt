@@ -13,12 +13,8 @@ option(AUCTION_BUILD_BENCH "Build the auction_bench benchmark" ON)
 option(AUCTION_SANITIZE "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 
 add_library(auction_warnings INTERFACE)
-if(MSVC)
-    target_compile_options(auction_warnings INTERFACE /W4 /WX)
-else()
-    target_compile_options(auction_warnings INTERFACE
-        -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Werror)
-endif()
+target_compile_options(auction_warnings INTERFACE
+    -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Werror)
 
 if(AUCTION_SANITIZE)
     add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all)
