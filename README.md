@@ -64,7 +64,7 @@ For example:
 
 Malformed input is rejected at the first error with the source file and line number.
 
-On POSIX, `-i` must name a stable regular file. Directories, FIFOs, and devices are rejected before mapping. The mapping remains alive only while parsing; every value returned in `OrderFile` owns its required data.
+`-i` must name a stable regular file. Directories, FIFOs, and devices are rejected before mapping. The mapping remains alive only while parsing; every value returned in `OrderFile` owns its required data.
 
 ## Auction rules
 
@@ -153,7 +153,7 @@ The project contains 42 unit and differential tests plus 17 command-line test en
 - equal price aggregation;
 - timestamp and final tie behavior;
 - parser and command-line rejection paths;
-- rejection of non-regular POSIX input paths;
+- rejection of non-regular input paths;
 - values near the arithmetic limit; and
 - 40,000 deterministic randomized comparisons against a separate brute-force implementation.
 
@@ -175,7 +175,7 @@ An optional synthetic benchmark is built as `auction_bench`:
 
 An optimized Apple M1 Pro profile measured parsing at approximately 265 ns per order and the auction calculation at approximately 50–84 ns per order, depending on the number of distinct price levels. That parser figure comes from repeatedly parsing an already-generated in-memory string; it excludes opening and reading a file. Parsing dominated total CPU time, while sorting dominated the auction phase on a deliberately wide price distribution. The measurements confirmed the documented `O(n log n)` behavior and found no auction-algorithm performance defect.
 
-The [`bench/parser-comparison`](https://github.com/ErwinGoneMad/aplo/tree/bench/parser-comparison) branch compares the current `std::getline` parser with whole-file buffered and memory-mapped input. Unlike the first benchmark, it includes opening a warm cached file, acquiring its bytes, validation, and parsing. For a 37 MB, one-million-order file, median ingestion times were approximately 280 ms, 144 ms, and 133 ms respectively. The separate [`feature/mmap-parser`](https://github.com/ErwinGoneMad/aplo/tree/feature/mmap-parser) branch contains the resulting POSIX mmap implementation. These are local comparative measurements, not portable latency guarantees.
+The [`bench/parser-comparison`](https://github.com/ErwinGoneMad/aplo/tree/bench/parser-comparison) branch compares `main`'s `std::getline` baseline with whole-file buffered and memory-mapped input. Unlike the first benchmark, it includes opening a warm cached file, acquiring its bytes, validation, and parsing. For a 37 MB, one-million-order file, median ingestion times were approximately 280 ms, 144 ms, and 133 ms respectively. This branch contains the resulting mmap implementation. These are local comparative measurements, not portable latency guarantees.
 
 ## Project layout
 
@@ -194,6 +194,6 @@ The [`bench/parser-comparison`](https://github.com/ErwinGoneMad/aplo/tree/bench/
 - Prices are limited to eight fractional digits and approximately `9.22e10` in magnitude. The assignment does not state a maximum precision or range.
 - Quantities must be positive and their total must fit in `INT64_MAX`.
 - All parsed orders and a temporary vector of price levels are held in memory; mapped input pages become resident as the operating system loads them.
-- POSIX input must be a regular file that is not modified or truncated while parsing; concurrent truncation of a mapping can raise `SIGBUS`.
+- Input must be a regular file that is not modified or truncated while parsing; concurrent truncation of a mapping can raise `SIGBUS`.
 - The final tie-break interpretation and equal-timestamp file-order rule are explicit implementation assumptions because the assignment does not define those cases fully.
 - A market-only book returns `0 / 0 / 0` because the assignment requires the auction price to be a non-market order price.

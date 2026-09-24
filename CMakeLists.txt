@@ -73,9 +73,7 @@ add_cli_test(cli_bad_reference "-i|${EXAMPLES}/input.txt|-r|abc" 2)
 add_cli_test(cli_unknown_flag "-x|1" 2)
 add_cli_test(cli_missing_file "-i|${EXAMPLES}/does_not_exist.txt|-r|1" 1)
 add_cli_test(cli_malformed_input "-i|${EXAMPLES}/malformed.txt|-r|1" 1)
-if(UNIX)
-    add_cli_test(cli_non_regular_input "-i|${EXAMPLES}|-r|1" 1)
-endif()
+add_cli_test(cli_non_regular_input "-i|${EXAMPLES}|-r|1" 1)
 
 # The usage line echoes argv[0], which is the absolute path of the built program.
 file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/expected_help.txt
