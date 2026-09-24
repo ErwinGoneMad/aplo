@@ -86,4 +86,7 @@ add_cli_test(cli_help_as_input_value "-i|--help|-r|1" 1)
 if(AUCTION_BUILD_BENCH)
     add_executable(auction_bench bench/bench.cpp)
     target_link_libraries(auction_bench PRIVATE auction_core auction_warnings)
+
+    add_executable(parser_bench bench/parser_bench.cpp)
+    target_link_libraries(parser_bench PRIVATE auction_core auction_warnings)
 endif()
